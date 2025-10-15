@@ -1,4 +1,4 @@
-package de.dbmlab.pitchpulse.feature.tuner.ui
+package de.dbmlab.pitchpulse.feature.rms
 
 import android.Manifest
 import androidx.compose.foundation.layout.*
@@ -7,13 +7,15 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import kotlinx.coroutines.launch
 import de.dbmlab.pitchpulse.core.audio.AudioInput
 import de.dbmlab.pitchpulse.core.permissions.hasRecordAudioPermission
 
+@Preview(showBackground = true)
 @Composable
-fun TunerScreen() {
+fun RMSScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 

@@ -1,21 +1,19 @@
 package de.dbmlab.pitchpulse
 
-import android.Manifest
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
-import kotlinx.coroutines.launch
-import de.dbmlab.pitchpulse.core.audio.AudioInput
-import de.dbmlab.pitchpulse.core.permissions.hasRecordAudioPermission
+import de.dbmlab.pitchpulse.feature.tuner.*
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.tooling.preview.Preview
 
+
+/*
+old call
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -23,7 +21,33 @@ class MainActivity : ComponentActivity() {
     }
 }
 
+*/
+class MainActivity : ComponentActivity() {
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        setContent { TunerHost() }
+    }
+}
+
+
+
+
+@Preview
 @Composable
+fun TunerHost() {
+    val vm =  remember { TunerViewModel() }
+    MaterialTheme(colorScheme = darkColorScheme()) {
+        Surface(Modifier.fillMaxSize(), color = Color(0xFF0A0C0F)) {
+            TunerScreen(vm)
+        }
+    }
+}
+
+
+
+
+/*
+Old application, don'need?
 private fun App() {
     val context = androidx.compose.ui.platform.LocalContext.current
     var granted by remember { mutableStateOf(hasRecordAudioPermission(context)) }
@@ -52,8 +76,11 @@ private fun App() {
         }
     }
 
-    MaterialTheme {
+
+    MaterialTheme() {
         Surface(modifier = Modifier.fillMaxSize()) {
+
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
@@ -111,7 +138,7 @@ private fun App() {
             }
         }
     }
-}
+}*/
 
 
 

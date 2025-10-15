@@ -12,6 +12,7 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import de.dbmlab.pitchpulse.feature.tuner.TunerViewModel
@@ -19,6 +20,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 import kotlin.math.sign
 
+@Preview
 @Composable
 fun TunerScreen(vm: TunerViewModel) {
     val s by vm.state.collectAsState()
