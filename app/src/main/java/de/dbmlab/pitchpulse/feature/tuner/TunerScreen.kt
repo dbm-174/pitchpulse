@@ -22,6 +22,24 @@ import kotlin.math.sign
 
 @Preview
 @Composable
+fun TunerScreenPreview() {
+    val vm =  remember { TunerViewModel() }
+        MaterialTheme(colorScheme = darkColorScheme()) {
+            Surface(Modifier.fillMaxSize(), color = Color(0xFF0A0C0F)) {
+                TunerScreen(vm)
+        }
+    }
+}
+
+@Composable
+fun TunerHost() {
+    val vm =  remember { TunerViewModel() }
+    TunerScreen(vm)
+}
+
+
+
+@Composable
 fun TunerScreen(vm: TunerViewModel) {
     val s by vm.state.collectAsState()
     val accent = if (s.inTuneWindow) Color(0xFF2ECC71) else Color(0xFFE67E22)

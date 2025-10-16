@@ -2,143 +2,198 @@ package de.dbmlab.pitchpulse
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import de.dbmlab.pitchpulse.feature.tuner.*
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.dp
+import de.dbmlab.pitchpulse.feature.tuner.TunerHost
+import de.dbmlab.pitchpulse.feature.level.LevelHost
+import de.dbmlab.pitchpulse.ui.theme.PitchPulseTheme
 
 
-/*
-old call
+
+
+
+
+
+enum class Screen { MENU, LEVEL, TUNER, VOICE, SETTINGS }
+
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        enableEdgeToEdge()
         super.onCreate(savedInstanceState)
-        setContent { App() }
-    }
-}
-
-*/
-class MainActivity : ComponentActivity() {
-    override fun onCreate(savedInstanceState: Bundle?) {
-        super.onCreate(savedInstanceState)
-        setContent { TunerHost() }
-    }
-}
-
-
-
-
-@Preview
-@Composable
-fun TunerHost() {
-    val vm =  remember { TunerViewModel() }
-    MaterialTheme(colorScheme = darkColorScheme()) {
-        Surface(Modifier.fillMaxSize(), color = Color(0xFF0A0C0F)) {
-            TunerScreen(vm)
-        }
-    }
-}
-
-
-
-
-/*
-Old application, don'need?
-private fun App() {
-    val context = androidx.compose.ui.platform.LocalContext.current
-    var granted by remember { mutableStateOf(hasRecordAudioPermission(context)) }
-    var running by remember { mutableStateOf(false) }
-    var frames by remember { mutableIntStateOf(0) }
-    var rms by remember { mutableFloatStateOf(0f) }
-
-    // Permission Launcher
-    val permissionLauncher = rememberLauncherForActivityResult(
-        contract = ActivityResultContracts.RequestPermission(),
-        onResult = { isGranted -> granted = isGranted }
-    )
-
-    val scope = rememberCoroutineScope()
-    // AudioInput einmal erstellen und behalten
-    val audioInput = remember {
-        AudioInput(
-            context = context,
-            sampleRate = 44100,
-            frameSize = 2048
-        ) { frame ->
-            frames++
-            var sum = 0f
-            for (v in frame) sum += v * v
-            rms = kotlin.math.sqrt(sum / frame.size)
-        }
-    }
-
-
-    MaterialTheme() {
-        Surface(modifier = Modifier.fillMaxSize()) {
-
-
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(24.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Pitch Pulse", style = MaterialTheme.typography.headlineMedium)
-
-                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Button(
-                        onClick = {
-                            if (!granted) {
-                                permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                            }
-                        },
-                        enabled = !granted
-                    ) { Text("Mikro erlauben") }
-
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                val ok = audioInput.start()
-                                running = ok
-                                if (!ok && !granted) {
-                                    // Safety: falls Berechtigung entzogen wurde
-                                    permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                                }
-                            }
-                        },
-                        enabled = granted && !running
-                    ) { Text("Start") }
-
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                audioInput.stop()
-                                running = false
-                            }
-                        },
-                        enabled = running
-                    ) { Text("Stop") }
+        setContent {
+            PitchPulseTheme {
+                Surface(
+                    modifier = Modifier.fillMaxSize(),
+                ) {
+                    PitchPulseApp()
                 }
-
-                Divider()
-
-                Text("Status: " + when {
-                    running -> "Audio läuft"
-                    granted -> "bereit (Berechtigung erteilt)"
-                    else -> "Berechtigung fehlt"
-                })
-
-                Text("Frames: $frames")
-                Text("RMS: ${"%.4f".format(rms)}")
             }
         }
     }
-}*/
+}
 
 
+// App preview function
+@Preview(showBackground = true)
+@Composable
+fun PitchPulseAppPreview() {
+    PitchPulseTheme {
+        PitchPulseApp()
+    }
+}
+
+
+@Composable
+fun PitchPulseApp(modifier: Modifier = Modifier) {
+    var screen by remember { mutableStateOf(Screen.MENU) }
+
+
+    BackHandler(enabled = screen != Screen.MENU) {
+        screen = Screen.MENU
+    }
+    when (screen) {
+        Screen.MENU -> MainMenu(
+            modifier = modifier,
+            onOpenLevel = { screen = Screen.LEVEL },
+            onOpenTuner = { screen = Screen.TUNER },
+            onOpenVoice = { screen = Screen.VOICE },
+            onOpenSettings = { screen = Screen.SETTINGS },
+        )
+        Screen.LEVEL -> LevelScreenWrapper(onBackToMenu = { screen = Screen.MENU })
+        Screen.TUNER -> TunerScreenWrapper(onBackToMenu = { screen = Screen.MENU })
+        Screen.VOICE -> VoiceScreenWrapper(onBackToMenu = { screen = Screen.MENU })
+        Screen.SETTINGS -> SettingsScreenWrapper(onBackToMenu = { screen = Screen.MENU })
+    }
+}
+
+@Composable
+fun MainMenu(
+    modifier : Modifier = Modifier,
+    onOpenLevel: () -> Unit,
+    onOpenTuner: () -> Unit,
+    onOpenVoice: () -> Unit,
+    onOpenSettings: () -> Unit,
+) {
+    Column(
+        modifier.statusBarsPadding()
+            .safeDrawingPadding()
+            .padding(24.dp)
+            .fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        MenuButton(text = stringResource(R.string.level), onClick = onOpenLevel, enabled = true)
+        Spacer(Modifier.height(12.dp))
+        MenuButton(text = stringResource(R.string.tuner), onClick = onOpenTuner, enabled = true)
+        Spacer(Modifier.height(12.dp))
+        MenuButton(text = stringResource(R.string.voice), onClick = onOpenVoice, enabled = true)
+        Spacer(Modifier.height(12.dp))
+        MenuButton(text = stringResource(R.string.settings), onClick = onOpenSettings, enabled = true)
+    }
+}
+
+@Composable
+private fun MenuButton(text: String, onClick: () -> Unit, enabled: Boolean) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth()
+    ) { Text(text) }
+}
+
+
+
+// ---------------- my 4 sub pages  -------------------- ///
+
+@Composable
+fun LevelScreenWrapper(onBackToMenu: () -> Unit) {
+    ScreenWithBottomMainMenu(
+        title = stringResource(R.string.level),
+        onBackToMenu = onBackToMenu
+    ) {
+        LevelHost()
+    }
+}
+
+@Composable
+fun TunerScreenWrapper(onBackToMenu: () -> Unit) {
+    ScreenWithBottomMainMenu(
+        title = stringResource(R.string.tuner),
+        onBackToMenu = onBackToMenu
+    ) {
+        TunerHost() // deine bestehende Composable
+    }
+}
+
+@Composable
+fun VoiceScreenWrapper(onBackToMenu: () -> Unit) {
+    ScreenWithBottomMainMenu(
+        title = stringResource(R.string.voice),
+        onBackToMenu = onBackToMenu
+    ) {
+        // TODO: Dein Voice-UI hier
+        Text("Voice Coming Soon")
+    }
+}
+
+@Composable
+fun SettingsScreenWrapper(onBackToMenu: () -> Unit) {
+    ScreenWithBottomMainMenu(
+        title = stringResource(R.string.settings),
+        onBackToMenu = onBackToMenu
+    ) {
+        // TODO: Deine Settings hier (Theme, Sprache, etc.)
+        Text("Settings Coming Soon")
+    }
+}
+
+// joint layout for all sub-pages
+
+@Composable
+fun ScreenWithBottomMainMenu(
+    title: String,
+    onBackToMenu: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .statusBarsPadding()
+            .safeDrawingPadding()
+            .fillMaxSize()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+    ) {
+        Text(text = title, style = MaterialTheme.typography.headlineSmall)
+        Spacer(Modifier.height(12.dp))
+
+        // Hauptinhalt der Seite
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Top,
+            content = content
+        )
+
+        // Button unten
+        Button(
+            onClick = onBackToMenu,
+            modifier = Modifier
+                .fillMaxWidth()
+                .navigationBarsPadding()
+        ) {
+            Text(stringResource(R.string.back_to_main))
+        }
+    }
+}
 

@@ -1,8 +1,9 @@
-package de.dbmlab.pitchpulse.feature.rms
+package de.dbmlab.pitchpulse.feature.level
 
 import android.Manifest
 import androidx.compose.foundation.layout.*
 import androidx.compose.material3.*
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -13,9 +14,15 @@ import kotlinx.coroutines.launch
 import de.dbmlab.pitchpulse.core.audio.AudioInput
 import de.dbmlab.pitchpulse.core.permissions.hasRecordAudioPermission
 
-@Preview(showBackground = true)
+
 @Composable
-fun RMSScreen() {
+fun LevelHost() {
+    LevelScreen()
+}
+
+
+@Composable
+fun LevelScreen() {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -99,5 +106,26 @@ fun RMSScreen() {
 
         Text("Frames: $frames")
         Text("RMS: ${"%.4f".format(rms)}")
+        Text("Level: ${"%.1f".format(rmsToDbFs(rms,1.0))} dBFS")
+        RmsBar(rmsToDbFs(rms,1.0))
     }
 }
+
+fun rmsToDbFs(rms: Float, ref: Double): Double {
+    if (rms <= 0.0) return -120.0 // Floor, vermeidet -Inf
+    val db = 20.0 * kotlin.math.log10(rms / ref)
+    return db.coerceIn(-120.0, 0.0) // sinnvoller Anzeigebereich
+}
+
+@Composable
+fun RmsBar(db: Double) {
+    val norm = ((db + -120.0) / -120.0).coerceIn(0.0, 1.0) // -120..0 dB -> 0..1
+    LinearProgressIndicator(
+    progress = { norm.toFloat() },
+    modifier = Modifier.fillMaxWidth(),
+    color = ProgressIndicatorDefaults.linearColor,
+    trackColor = ProgressIndicatorDefaults.linearTrackColor,
+    strokeCap = ProgressIndicatorDefaults.LinearStrokeCap,
+    )
+}
+
