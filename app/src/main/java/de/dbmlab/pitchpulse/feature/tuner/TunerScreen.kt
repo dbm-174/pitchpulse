@@ -1,5 +1,8 @@
 package de.dbmlab.pitchpulse.feature.tuner
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -10,15 +13,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import de.dbmlab.pitchpulse.feature.tuner.TunerViewModel
-import kotlin.math.abs
+import de.dbmlab.pitchpulse.core.music.NoteMapper
+import kotlin.math.ceil
+import kotlin.math.floor
 import kotlin.math.roundToInt
-import kotlin.math.sign
+
 
 @Preview
 @Composable
@@ -128,40 +134,123 @@ private fun NeedleBar(cents: Float, accent: Color) {
 }
 
 @Composable
-private fun HistoryChart(history: List<Float>) {
+fun HistoryChart(
+    history: List<Float>,
+    modifier: Modifier = Modifier,
+    windowSize: Float = 20f,            // sichtbarer Ausschnitt in "Steps"
+    animateMs: Int = 400               // Dauer des Nachführens
+
+
+) {
     val bg = Color(0xFF0B0D10)
+    val maxVal = 127f
+    val minVal = 0f
+    val mapper = NoteMapper()
+
+    // Viewport als center-basierte Darstellung, damit wir sauber clampen können
+    val initialCenter = 60f.coerceIn(windowSize/2, maxVal - windowSize/2)
+    val center = remember { Animatable(initialCenter) }
+
+    // Letzten gültigen Messwert ermitteln (für Nachführung)
+    val lastValid = remember(history) {
+        history.indexOfLast { !it.isNaN() }
+            .takeIf { it >= 0 }
+            ?.let { history[it].coerceIn(minVal, maxVal) }
+    }
+
+    // Sanftes Nachführen, wenn der Wert den Viewport verlässt (mit kleinem Innenpuffer)
+    LaunchedEffect(lastValid, windowSize) {
+        val margin = 2f // etwas Puffer, damit nicht bei jeder kleinen Berührung gescrollt wird
+        lastValid?.let { v ->
+            val curMin = center.value - windowSize/2
+            val curMax = center.value + windowSize/2
+            val inside = v in (curMin + margin)..(curMax - margin)
+            if (!inside) {
+                val targetCenter = v.coerceIn(windowSize/2, maxVal - windowSize/2)
+                center.animateTo(
+                    targetCenter,
+                    animationSpec = tween(durationMillis = animateMs, easing = FastOutSlowInEasing)
+                )
+            }
+        }
+    }
+
     Box(
-        Modifier.fillMaxWidth().height(160.dp)
-            .background(bg, RoundedCornerShape(12.dp)).padding(8.dp)
+        modifier
+            .fillMaxWidth()
+            .height(400.dp) // volle Höhe nutzen
+            .background(bg, RoundedCornerShape(12.dp))
+            .padding(8.dp)
     ) {
         Canvas(Modifier.fillMaxSize()) {
             val w = size.width
             val h = size.height
-            val maxCents = 50f
-            // bands
-            fun yForCent(c: Float) = (1f - ((c + maxCents) / (2 * maxCents))) * h
-            // ±50 band bg
-            drawRect(Color(0x1116A085), topLeft = Offset(0f, yForCent(+50f)), size = androidx.compose.ui.geometry.Size(w, yForCent(-50f)-yForCent(+50f)))
-            // ±25 lines
-            drawLine(Color(0x3340A0FF), Offset(0f, yForCent(+25f)), Offset(w, yForCent(+25f)), 2f)
-            drawLine(Color(0x3340A0FF), Offset(0f, yForCent(-25f)), Offset(w, yForCent(-25f)), 2f)
-            // 0 cent center
-            drawLine(Color(0x66FFFFFF), Offset(0f, yForCent(0f)), Offset(w, yForCent(0f)), 2f)
 
+            // Aktueller Viewport (unten/oben in Datenkoordinaten)
+            val vpMin = (center.value - windowSize/2).coerceIn(minVal, maxVal - windowSize)
+            val vpMax = (vpMin + windowSize).coerceAtMost(maxVal)
+
+            // Mapping: Datenwert -> y-Pixel (oben kleiner y)
+            fun yFor(v: Float): Float {
+                val t = ((v - vpMin) / (vpMax - vpMin)).coerceIn(0f, 1f)  // 0..1
+                return (1f - t) * h
+            }
+
+            // Einfache Hintergrundbänder / Raster: jede 2 Einheiten eine feine Linie
+            val tickStep = 2
+            for (tick in ceil(vpMin).toInt()..floor(vpMax).toInt()) {
+                if (tick % tickStep == 0) {
+                    val y = yFor(tick.toFloat())
+                    drawLine(Color(0x2230A0FF), Offset(0f, y), Offset(w, y), strokeWidth = 1f)
+                }
+            }
+
+            // Stärkere Linie auf ganzzahligen Noten (optional)
+            for (tick in ceil(vpMin).toInt()..floor(vpMax).toInt()) {
+                val y = yFor(tick.toFloat())
+                drawLine(Color(0x33444444), Offset(0f, y), Offset(w, y), strokeWidth = if (tick % 12 == 0) 2f else 1f)
+            }
+
+            // y-Achsen-Labels links (alle 4 Schritte)
+            drawIntoCanvas { canvas ->
+                val paint = android.graphics.Paint().apply {
+                    isAntiAlias = true
+                    color = android.graphics.Color.WHITE
+                    textSize = 10.dp.toPx()
+                }
+                val labelStep = 4
+                val paddingPx = 4.dp.toPx()
+                for (tick in ceil(vpMin).toInt()..floor(vpMax).toInt()) {
+                    if (tick % labelStep == 0) {
+                        val y = yFor(tick.toFloat())
+                        val label = mapper.midiToName(tick)
+                        canvas.nativeCanvas.drawText(
+                            label,
+                            paddingPx,
+                            y - 2f,
+                            paint
+                        )
+                    }
+                }
+            }
+
+            // Verlaufslinie zeichnen, wenn Daten vorhanden
             if (history.isNotEmpty()) {
                 val stepX = w / (history.size - 1).coerceAtLeast(1)
                 var last: Offset? = null
                 history.forEachIndexed { i, v ->
-                    val y = if (v.isNaN()) null else yForCent(v.coerceIn(-maxCents, +maxCents))
+                    val vv = v.takeIf { !it.isNaN() }?.coerceIn(minVal, maxVal)
+                    val y = vv?.let { yFor(it) }
                     if (y != null) {
                         val p = Offset(i * stepX, y)
                         last?.let { prev -> drawLine(Color(0xFF52D273), prev, p, 3f) }
                         last = p
                     } else {
-                        last = null // gap for unvoiced
+                        last = null // Lücke für ungültige Werte
                     }
                 }
             }
         }
     }
 }
+

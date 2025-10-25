@@ -40,6 +40,8 @@ class TunerViewModel : ViewModel() {
     private val alphaHz = 0.25f
     private val alphaCents = 0.35f
 
+    private var noteNumeric = 0f
+
     fun start() {
         if (_state.value.running) return
         viewModelScope.launch {
@@ -59,9 +61,10 @@ class TunerViewModel : ViewModel() {
                         // Smooth
                         emaHz = if (emaHz == 0f) info.idealHz else (alphaHz * info.idealHz + (1f - alphaHz) * emaHz)
                         emaCents = if (emaCents == 0f) info.centsToNearest else (alphaCents * info.centsToNearest + (1f - alphaCents) * emaCents)
+                        noteNumeric = info.midi+emaCents/100f
 
                         val inWindow = abs(emaCents) <= 10f // grün bei ±10 Cent
-                        pushHistory(emaCents)
+                        pushHistory(noteNumeric)
 
                         _state.value = _state.value.copy(
                             hz = p.hz,
