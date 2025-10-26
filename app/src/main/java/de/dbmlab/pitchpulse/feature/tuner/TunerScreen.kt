@@ -24,6 +24,7 @@ import de.dbmlab.pitchpulse.core.music.NoteMapper
 import kotlin.math.ceil
 import kotlin.math.floor
 import kotlin.math.roundToInt
+import de.dbmlab.pitchpulse.core.permissions.*
 
 
 @Preview
@@ -40,6 +41,11 @@ fun TunerScreenPreview() {
 @Composable
 fun TunerHost() {
     val vm =  remember { TunerViewModel() }
+    PermissionedLifecycleGate(
+        permission = android.Manifest.permission.RECORD_AUDIO,
+        onEnterWithPermission = { vm.start() },
+        onLeave = { vm.stop() }
+    )
     TunerScreen(vm)
 }
 
@@ -70,11 +76,11 @@ fun TunerScreen(vm: TunerViewModel) {
         HistoryChart(history = s.history)
 
         Spacer(Modifier.height(16.dp))
-
+        /*
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             Button(onClick = { vm.start() }, enabled = !s.running) { Text("Start") }
             OutlinedButton(onClick = { vm.stop() }, enabled = s.running) { Text("Stop") }
-        }
+        }*/
         Spacer(Modifier.height(8.dp))
         Text("Conf: ${"%.2f".format(s.confidence)} • ${if (s.inTuneWindow) "in tune" else "off"}",
             color = Color(0xFF9FB0BF), fontSize = 14.sp)
