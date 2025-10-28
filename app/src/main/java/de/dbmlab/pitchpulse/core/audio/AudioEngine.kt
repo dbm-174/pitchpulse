@@ -1,4 +1,6 @@
 package de.dbmlab.pitchpulse.core.audio
+
+
 import android.media.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
@@ -14,6 +16,8 @@ data class AudioConfig(
     val frameSize: Int = 2048,   // YIN window
     val hopSize: Int = 512       // ~11.6 ms @ 44.1k
 )
+
+
 
 class AudioEngine(
     private val scope: CoroutineScope,
@@ -39,7 +43,7 @@ class AudioEngine(
         rec.startRecording()
 
         job = scope.launch(Dispatchers.Default) {
-            val yin = de.dbmlab.pitchpulse.core.pitch.YinDetector(config.sampleRate, config.frameSize)
+            val yin = YinDetector(config.sampleRate, config.frameSize)
             val shortBuf = ShortArray(config.hopSize)
             val floatFrame = FloatArray(config.frameSize)
             var writeIdx = 0
