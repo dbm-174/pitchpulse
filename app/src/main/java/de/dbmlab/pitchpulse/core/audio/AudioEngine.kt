@@ -29,6 +29,16 @@ class AudioEngine(
     private val _pitch = MutableSharedFlow<PitchResult>(replay = 0, extraBufferCapacity = 32, onBufferOverflow = BufferOverflow.DROP_OLDEST)
     val pitch: SharedFlow<PitchResult> = _pitch
 
+    /*
+    Hinweise/Verbesserungen (optional)
+    Dispatcher-Wahl: Default ist okay wegen DSP. Wenn DSP sehr leicht ist und IO dominant, kannst du IO testen. Oder getrennte Pipelines: Lesen auf IO, YIN auf Default.
+    AudioSource: Je nach Gerät kann AUDIO_SOURCE_UNPROCESSED oder VOICE_RECOGNITION bessere Latenz/Qualität liefern (wenn verfügbar).
+    Bufferstrategie: tryEmit kann droppen. Wenn das unerwünscht ist, SharedFlow mit passendem Buffer und onBufferOverflow=SUSPEND nutzen (dann aber auf Latenz achten).
+    Stop-Logik: Stelle sicher, dass stop() den Job cancel’t, recorder.stop() und release() aufruft. So vermeidest du “hängende” Mic-Handles.
+    Thread-Priorität: Für harte Latenzanforderungen kann man Audio-Threads priorisieren (native/AAudio, Oboe), aber für viele Tuner-Apps reicht AudioRecord + Default/IO gut aus.
+    */
+
+
     fun start(): Boolean {
         stop()
         val minBuf = AudioRecord.getMinBufferSize(config.sampleRate, config.channelConfig, config.encoding)

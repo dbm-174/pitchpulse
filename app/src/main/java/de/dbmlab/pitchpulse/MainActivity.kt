@@ -22,7 +22,6 @@ class MainActivity : ComponentActivity() {
         setContent {
             PitchPulseTheme (darkTheme = true) {
                 Box(Modifier.fillMaxSize()) {
-                    // Dein Host
                     TunerHost()
 
                     // Sichtbarer Debug-Overlay unten rechts

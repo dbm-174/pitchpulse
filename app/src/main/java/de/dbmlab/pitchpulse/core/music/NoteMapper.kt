@@ -62,34 +62,3 @@ class NoteMapper(private val myKey: AllKeys =  AllKeys.C, private val a4Hz: Floa
         return NoteInfo(name, midiNearest, ideal, cents)
     }
 }
-
-/*
-fun main() {
-    val mapper = NoteMapper(440f)
-    val maxHistory = 300
-    val hist = ArrayDeque<Float>(maxHistory)
-
-    // EMA smoothing
-    var emaHz = 0f
-    var emaCents = 0f
-    val alphaHz = 0.25f
-    val alphaCents = 0.35f
-
-    var noteNumeric = 0f
-    var noteHz = 500f
-
-    var info = mapper.map(noteHz)
-
-    if (info == null) {
-
-    }
-    else {
-        emaHz = if (emaHz == 0f) info.idealHz else (alphaHz * info.idealHz + (1f - alphaHz) * emaHz)
-        emaCents =
-            if (emaCents == 0f) info.centsToNearest else (alphaCents * info.centsToNearest + (1f - alphaCents) * emaCents)
-        noteNumeric = info.midi + emaCents
-        println("emHz = $emaHz, emaCents = $emaCents, noteNumeric is $noteNumeric ($noteHz Hz)")
-    }
-
-}
-*/
