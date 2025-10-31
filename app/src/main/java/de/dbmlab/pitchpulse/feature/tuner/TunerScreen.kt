@@ -1,7 +1,13 @@
 package de.dbmlab.pitchpulse.feature.tuner
 
+import android.Manifest
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
+import android.provider.Settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
@@ -11,23 +17,29 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import de.dbmlab.pitchpulse.core.permissions.PermissionedLifecycleGate
+import de.dbmlab.pitchpulse.core.permissions.LifecycleEffect
+import de.dbmlab.pitchpulse.core.permissions.hasRecordAudioPermission
+import de.dbmlab.pitchpulse.core.permissions.rememberPermissionLauncher
 import de.dbmlab.pitchpulse.feature.chart.HistoryChart
 import de.dbmlab.pitchpulse.ui.theme.PitchPulseTheme
 import kotlin.math.roundToInt
@@ -36,22 +48,7 @@ import kotlin.math.roundToInt
 @Preview
 @Composable
 fun TunerScreenPreview() {
-    val vm =  remember { TunerViewModel() }
-    PitchPulseTheme (darkTheme = true) {
-        Surface(Modifier.fillMaxSize()) {
-            TunerScreen(vm)
-    }
-}
-}
-
-@Composable
-fun TunerHost() {
     val vm = remember { TunerViewModel() }
-    PermissionedLifecycleGate(
-        permission = android.Manifest.permission.RECORD_AUDIO,
-        onEnterWithPermission = { vm.start() },
-        onLeave = { vm.stop() }
-    )
     PitchPulseTheme(darkTheme = true) {
         Surface(Modifier.fillMaxSize()) {
             TunerScreen(vm)
@@ -59,6 +56,72 @@ fun TunerHost() {
     }
 }
 
+@Composable
+fun TunerHost() {
+    val context = LocalContext.current
+    val vm = remember { TunerViewModel() }
+    var hasPermission by remember { mutableStateOf(hasRecordAudioPermission(context)) }
+    val permissionLauncher = rememberPermissionLauncher { hasPermission = it }
+    val activity = (LocalContext.current as? Activity)
+
+    if (hasPermission) {
+        LifecycleEffect(
+            onStarted = { vm.start() },
+            onStopped = { vm.stop() }
+        )
+        PitchPulseTheme(darkTheme = true) {
+            Surface(Modifier.fillMaxSize()) {
+                TunerScreen(vm)
+            }
+        }
+    } else {
+        PermissionScreen(
+            onGrantPermission = { permissionLauncher() },
+            onOpenSettings = {
+                val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                intent.data = Uri.fromParts("package", context.packageName, null)
+                context.startActivity(intent)
+            },
+            shouldShowRationale = activity?.shouldShowRequestPermissionRationale(Manifest.permission.RECORD_AUDIO) == true
+        )
+    }
+}
+
+@Composable
+fun PermissionScreen(
+    onGrantPermission: () -> Unit,
+    onOpenSettings: () -> Unit,
+    shouldShowRationale: Boolean
+) {
+    PitchPulseTheme(darkTheme = true) {
+        Surface(Modifier.fillMaxSize()) {
+            Column(
+                modifier = Modifier.padding(16.dp).fillMaxSize(),
+                verticalArrangement = Arrangement.Center,
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Microphone Permission",
+                    style = MaterialTheme.typography.headlineMedium,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = if (shouldShowRationale) {
+                        "We need your permission to access the microphone to analyze the pitch of your instrument. Please grant the permission to continue."
+                    } else {
+                        "We need microphone access. Please grant the permission in the app settings."
+                    },
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(32.dp))
+                Button(onClick = if (shouldShowRationale) onGrantPermission else onOpenSettings) {
+                    Text(if (shouldShowRationale) "Grant Permission" else "Open Settings")
+                }
+            }
+        }
+    }
+}
 
 
 @Composable
@@ -77,23 +140,18 @@ fun TunerScreen(vm: TunerViewModel) {
         HistoryChart(
             history = s.history,
             modifier = Modifier
-            .weight(1f)
-            .fillMaxWidth()
-            .heightIn(min = 200.dp)
+                .weight(1f)
+                .fillMaxWidth()
+                .heightIn(min = 200.dp)
         )
-        //Spacer(Modifier.height(16.dp))
-        //RoundIconButtonsRow()
     }
 }
 
 @Composable
-private fun NoteText(noteName : String = "-") {
+private fun NoteText(noteName: String = "-") {
     Text(noteName, fontSize = 56.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground, modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
 
 }
-
-
-
 
 
 @Composable
@@ -102,7 +160,6 @@ private fun NeedleBar(cents: Float) {
     val clamped = cents.coerceIn(-maxCents, maxCents)
     val pos = (clamped + maxCents) / (2 * maxCents) // 0..1
 
-    // Color scheme here
     val needleColor = Color.Red
     val backgroundColor = MaterialTheme.colorScheme.surfaceContainer
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
@@ -120,29 +177,25 @@ private fun NeedleBar(cents: Float) {
             val w = size.width
             val h = size.height
 
-            // Background bands: ±50 (dark), ±25 (mid), ±10 (green window)
             fun drawBand(cent: Float, color: Color) {
                 val x = (cent + maxCents) / (2 * maxCents) * w
                 drawLine(color = color, start = Offset(x, 0f), end = Offset(x, h), strokeWidth = 2f)
             }
-            // colored window
+
             val winStart = (maxCents - 10f) / (2 * maxCents) * w
             val winEnd = (maxCents + 10f) / (2 * maxCents) * w
             drawRect(color = centerBoxColor, topLeft = Offset(winStart, 0f), size = androidx.compose.ui.geometry.Size(winEnd - winStart, h))
 
-            // center line
-            drawLine(centerLineColor, Offset(w/2f, 0f), Offset(w/2f, h), 2f)
-            // ±25/±50 markers
+            drawLine(centerLineColor, Offset(w / 2f, 0f), Offset(w / 2f, h), 2f)
+
             drawBand(-25f, tickColor)
             drawBand(+25f, tickColor)
             drawBand(-50f, tickColor)
             drawBand(+50f, tickColor)
 
-            // Needle
             val xNeedle = pos * w
             drawLine(color = needleColor, start = Offset(xNeedle, 0f), end = Offset(xNeedle, h), strokeWidth = 5f)
 
-            // Scale ticks every 10 cents
             for (c in -50..50 step 10) {
                 val x = (c + maxCents) / (2 * maxCents) * w
                 val th = if (c % 25 == 0) 14f else 8f
