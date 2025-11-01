@@ -3,8 +3,9 @@ package de.dbmlab.pitchpulse.feature.tuner
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import de.dbmlab.pitchpulse.core.audio.AudioEngine
 import de.dbmlab.pitchpulse.core.audio.AudioConfig
+import de.dbmlab.pitchpulse.core.audio.AudioEngine
+import de.dbmlab.pitchpulse.core.music.NoteInfo
 import de.dbmlab.pitchpulse.core.music.NoteMapper
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -38,9 +39,7 @@ class TunerViewModel : ViewModel() {
     private var emaHz = 0f
     private var emaCents = 0f
     private val alphaHz = 0.25f
-    private val alphaCents = 0.35f
-
-    private var noteNumeric = 0f
+    private val alphaCents = 0.15f
 
     fun start() {
         if (_state.value.running) return
@@ -49,6 +48,8 @@ class TunerViewModel : ViewModel() {
             engine.pitch.collectLatest { p ->
                 if (!p.voiced) {
                     pushHistory(Float.NaN)
+                    emaHz = 0f
+                    emaCents = 0f
                     _state.value = _state.value.copy(
                         hz = 0f, cents = 0f, note = "-", confidence = p.confidence, inTuneWindow = false,
                         history = hist.toList()
@@ -57,13 +58,10 @@ class TunerViewModel : ViewModel() {
                     val info = mapper.map(p.hz)
                     if (info == null) {
                         pushHistory(Float.NaN)
+                        _state.value = _state.value.copy(history = hist.toList())
                     } else {
-                        // Smooth
-                        emaHz = if (emaHz == 0f) info.idealHz else (alphaHz * info.idealHz + (1f - alphaHz) * emaHz)
-                        emaCents = if (emaCents == 0f) info.centsToNearest else (alphaCents * info.centsToNearest + (1f - alphaCents) * emaCents)
-                        noteNumeric = info.midi+emaCents/100f
-
-                        val inWindow = abs(emaCents) <= 10f // grün bei ±10 Cent
+                        val noteNumeric = updateSmoothedPitch(info)
+                        val inWindow = abs(emaCents) <= 10f
                         pushHistory(noteNumeric)
 
                         _state.value = _state.value.copy(
@@ -78,6 +76,12 @@ class TunerViewModel : ViewModel() {
                 }
             }
         }
+    }
+
+    private fun updateSmoothedPitch(info: NoteInfo): Float {
+        emaHz = if (emaHz == 0f) info.idealHz else (alphaHz * info.idealHz + (1f - alphaHz) * emaHz)
+        emaCents = if (emaCents == 0f) info.centsToNearest else (alphaCents * info.centsToNearest + (1f - alphaCents) * emaCents)
+        return info.midi + emaCents / 100f
     }
 
     fun stop() {
