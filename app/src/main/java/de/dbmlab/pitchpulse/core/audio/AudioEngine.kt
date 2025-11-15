@@ -6,8 +6,6 @@ import kotlinx.coroutines.*
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
-import de.dbmlab.pitchpulse.core.pitch.YinDetector
-import de.dbmlab.pitchpulse.core.pitch.PitchResult
 
 data class AudioConfig(
     val sampleRate: Int = 44100,
