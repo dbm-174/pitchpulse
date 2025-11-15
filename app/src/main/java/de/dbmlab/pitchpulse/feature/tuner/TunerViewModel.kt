@@ -2,14 +2,18 @@ package de.dbmlab.pitchpulse.feature.tuner
 
 
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import de.dbmlab.pitchpulse.core.audio.AudioConfig
 import de.dbmlab.pitchpulse.core.audio.AudioEngine
+import de.dbmlab.pitchpulse.core.audio.PitchResult
+import de.dbmlab.pitchpulse.core.music.NoteInfo
 import de.dbmlab.pitchpulse.core.music.NoteMapper
-import de.dbmlab.pitchpulse.core.pitch.PitchResult
+import de.dbmlab.pitchpulse.core.settings.SettingsRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -26,8 +30,8 @@ data class TunerState(
     val a4Hz: Float = 440f
 )
 
-class TunerViewModel : ViewModel() {
-    private val mapper = NoteMapper(a4Hz = 440f)
+class TunerViewModel(private val settingsRepository: SettingsRepository) : ViewModel() {
+
     private val engine = AudioEngine(viewModelScope, AudioConfig(frameSize = 2048, hopSize = 512, sampleRate = 44100))
 
     private val _state = MutableStateFlow(TunerState())
@@ -53,18 +57,20 @@ class TunerViewModel : ViewModel() {
         if (_state.value.running) return
         viewModelScope.launch {
             _state.value = _state.value.copy(running = engine.start())
-            engine.pitch.collectLatest { p ->
-                if (!p.voiced) {
-                    handleUnvoiced()
-                } else {
-                    val info = mapper.map(p.hz)
-                    if (info == null) {
-                        handleInvalidPitch()
+            engine.pitch.combine(settingsRepository.appSettings) { p, settings -> Pair(p, settings) }
+                .collectLatest { (p, settings) ->
+                    val mapper = NoteMapper(settings.key, settings.a4Hz)
+                    if (!p.voiced) {
+                        handleUnvoiced()
                     } else {
-                        handleVoiced(p, info)
+                        val info = mapper.map(p.hz)
+                        if (info == null) {
+                            handleInvalidPitch()
+                        } else {
+                            handleVoiced(p, info)
+                        }
                     }
                 }
-            }
         }
     }
 
@@ -83,7 +89,7 @@ class TunerViewModel : ViewModel() {
         _state.value = _state.value.copy(history = hist.toList())
     }
 
-    private fun handleVoiced(p: PitchResult, info: NoteMapper.NoteInfo) {
+    private fun handleVoiced(p: PitchResult, info: NoteInfo) {
         if (stableNoteMidi == null || stableNoteMidi == info.midi) {
             // Same note as stable, or first note.
             stableNoteMidi = info.midi
@@ -114,7 +120,7 @@ class TunerViewModel : ViewModel() {
         }
     }
 
-    private fun updateStateWithNewPitch(p: PitchResult, info: NoteMapper.NoteInfo) {
+    private fun updateStateWithNewPitch(p: PitchResult, info: NoteInfo) {
         val noteNumeric = updateSmoothedPitch(info)
         val inWindow = abs(emaCents) <= 10f
         pushHistory(noteNumeric)
@@ -129,7 +135,7 @@ class TunerViewModel : ViewModel() {
         )
     }
 
-    private fun updateSmoothedPitch(info: NoteMapper.NoteInfo): Float {
+    private fun updateSmoothedPitch(info: NoteInfo): Float {
         emaHz = if (emaHz == 0f) info.idealHz else (alphaHz * info.idealHz + (1f - alphaHz) * emaHz)
         emaCents = if (emaCents == 0f) info.centsToNearest else (alphaCents * info.centsToNearest + (1f - alphaCents) * emaCents)
         return info.midi + emaCents / 100f
@@ -154,5 +160,15 @@ class TunerViewModel : ViewModel() {
     private fun pushHistory(v: Float) {
         if (hist.size == maxHistory) hist.removeFirst()
         hist.addLast(v)
+    }
+}
+
+class TunerViewModelFactory(private val settingsRepository: SettingsRepository) : ViewModelProvider.Factory {
+    override fun <T : ViewModel> create(modelClass: Class<T>): T {
+        if (modelClass.isAssignableFrom(TunerViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return TunerViewModel(settingsRepository) as T
+        }
+        throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

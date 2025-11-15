@@ -1,4 +1,4 @@
-package de.dbmlab.pitchpulse.core.pitch
+package de.dbmlab.pitchpulse.core.audio
 import kotlin.math.abs
 import kotlin.math.floor
 import kotlin.math.ln
