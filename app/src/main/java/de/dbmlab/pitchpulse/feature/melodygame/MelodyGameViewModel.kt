@@ -13,8 +13,13 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.launch
 
+data class Note(
+    val pitch: Float, // MIDI note value
+    val timePosition: Float // Time position in beats (at 120 BPM, 1 beat = 0.5 seconds)
+)
+
 data class MelodyGameState(
-    val melody: List<Float> = emptyList(),
+    val notes: List<Note> = emptyList(), // User-editable notes
     val userMelody: List<Float> = emptyList(),
     val isPlaying: Boolean = false,
     val isListening: Boolean = false,
@@ -29,20 +34,64 @@ class MelodyGameViewModel(private val settingsRepository: SettingsRepository) : 
     private val engine = AudioEngine(viewModelScope, AudioConfig(frameSize = 2048, hopSize = 512, sampleRate = 44100))
     private val hist = ArrayDeque<Float>()
 
+    companion object {
+        const val BPM = 120
+        const val QUARTER_NOTE_DURATION_MS = 500L // 60/120 * 1000 = 500ms
+    }
+
     fun startGame() {
         viewModelScope.launch {
-            val newMelody = generateMelody()
-            _uiState.value = MelodyGameState(melody = newMelody, isPlaying = true)
-            // TODO: Play the melody
-
-            // For now, lets just start listening right away
-            startListening()
+            _uiState.value = MelodyGameState(notes = emptyList())
         }
     }
 
-    private fun generateMelody(): List<Float> {
-        // Generate 3 random notes for now
-        return listOf(60f, 64f, 67f) // C major chord notes
+    fun playMelody() {
+        viewModelScope.launch {
+            if (_uiState.value.isPlaying) return@launch
+
+            if (_uiState.value.isListening) {
+                stopListening()
+                hist.clear()
+                _uiState.value = _uiState.value.copy(userMelody = emptyList())
+            }
+
+            _uiState.value = _uiState.value.copy(isPlaying = true)
+            engine.playMelodyWithTiming(_uiState.value.notes, BPM)
+            _uiState.value = _uiState.value.copy(isPlaying = false)
+        }
+    }
+
+    fun addNote(pitch: Float, timePosition: Float) {
+        // Snap pitch to nearest MIDI note for better alignment
+        val snappedPitch = pitch.coerceIn(0f, 127f).let { 
+            kotlin.math.round(it).coerceIn(0f, 127f)
+        }
+        val newNote = Note(snappedPitch, timePosition)
+        val updatedNotes = (_uiState.value.notes + newNote).sortedBy { it.timePosition }
+        _uiState.value = _uiState.value.copy(notes = updatedNotes)
+    }
+
+    fun removeNoteAt(pitch: Float, timePosition: Float, pitchTolerance: Float = 0.6f, timeTolerance: Float = 0.3f): Boolean {
+        val notes = _uiState.value.notes
+        val noteToRemove = notes.find { note ->
+            kotlin.math.abs(note.pitch - pitch) < pitchTolerance && 
+            kotlin.math.abs(note.timePosition - timePosition) < timeTolerance
+        }
+        
+        return if (noteToRemove != null) {
+            _uiState.value = _uiState.value.copy(notes = notes - noteToRemove)
+            true
+        } else {
+            false
+        }
+    }
+
+    fun handleCanvasTap(pitch: Float, timePosition: Float) {
+        // Try to remove note first, if not found, add a new one
+        val removed = removeNoteAt(pitch, timePosition, pitchTolerance = 0.6f, timeTolerance = 0.3f)
+        if (!removed) {
+            addNote(pitch, timePosition)
+        }
     }
 
     private fun startListening() {
