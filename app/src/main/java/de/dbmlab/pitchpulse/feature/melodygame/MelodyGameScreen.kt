@@ -29,6 +29,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
@@ -137,6 +138,7 @@ fun MelodyGameScreen() {
         // Interactive note canvas
         NoteCanvas(
             notes = uiState.notes,
+            currentPlaybackTime = if (uiState.isPlaying) uiState.currentPlaybackTime else null,
             onTap = { pitch, timePosition ->
                 viewModel.handleCanvasTap(pitch, timePosition)
             },
@@ -159,15 +161,20 @@ fun MelodyGameScreen() {
 @Composable
 fun NoteCanvas(
     notes: List<Note>,
+    currentPlaybackTime: Float? = null,
     onTap: (Float, Float) -> Unit,
     modifier: Modifier = Modifier,
     windowSize: Float = 20f,
-    maxTimeBeats: Float = 8f // Maximum time range in beats
+    maxTimeBeats: Float = 8f, // Maximum time range in beats
+    quarterNoteBeats: Float = 1f // Quarter note duration in beats
 ) {
     // Drawing parameters
     val backgroundColor = MaterialTheme.colorScheme.surfaceContainer
     val noteColor = Color.Green
-    val noteRadius = 12f
+    val noteHeight = 16f // Height of the note rectangle
+    val noteCornerRadius = 4f // Corner radius for rounded rectangles
+    val cursorColor = Color.Red
+    val cursorWidth = 3f
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
     val nonKeyTickColor = MaterialTheme.colorScheme.onSurface
     val keyTickColor = MaterialTheme.colorScheme.onSurface
@@ -267,15 +274,36 @@ fun NoteCanvas(
                 )
             }
             
-            // Draw notes as circles
+            // Draw notes as rounded rectangles
             notes.forEach { note ->
                 val y = yFor(note.pitch)
                 val x = xFor(note.timePosition)
-                drawCircle(
+                
+                // Calculate note width based on duration (quarter note = 1 beat)
+                val noteWidth = xFor(note.timePosition + quarterNoteBeats) - x
+                
+                // Draw rounded rectangle centered on the pitch line
+                val rectTop = y - noteHeight / 2
+                val rectLeft = x
+                drawRoundRect(
                     color = noteColor,
-                    radius = noteRadius,
-                    center = Offset(x, y)
+                    topLeft = Offset(rectLeft, rectTop),
+                    size = androidx.compose.ui.geometry.Size(noteWidth, noteHeight),
+                    cornerRadius = CornerRadius(noteCornerRadius, noteCornerRadius)
                 )
+            }
+            
+            // Draw playback cursor
+            currentPlaybackTime?.let { playbackTime ->
+                if (playbackTime >= 0f && playbackTime <= maxTimeBeats) {
+                    val cursorX = xFor(playbackTime)
+                    drawLine(
+                        color = cursorColor,
+                        start = Offset(cursorX, 0f),
+                        end = Offset(cursorX, h),
+                        strokeWidth = cursorWidth
+                    )
+                }
             }
         }
     }
