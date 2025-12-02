@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 data class Note(
     val pitch: Float, // MIDI note value
@@ -25,7 +26,9 @@ data class MelodyGameState(
     val isPlaying: Boolean = false,
     val isListening: Boolean = false,
     val score: Int = 0,
-    val currentPlaybackTime: Float = 0f // Current playback time in beats
+    val currentPlaybackTime: Float = 0f, // Current playback time in beats
+    val currentPitch: Float? = null,    // current detected pitch (MIDI, incl. cents)
+    val lastHitGood: Boolean? = null    // null = no decision yet, true = hit, false = miss
 )
 
 class MelodyGameViewModel(private val settingsRepository: SettingsRepository) : ViewModel() {
@@ -33,8 +36,16 @@ class MelodyGameViewModel(private val settingsRepository: SettingsRepository) : 
     private val _uiState = MutableStateFlow(MelodyGameState())
     val uiState: StateFlow<MelodyGameState> = _uiState.asStateFlow()
 
-    private val engine = AudioEngine(viewModelScope, AudioConfig(frameSize = 2048, hopSize = 512, sampleRate = 44100))
+    private val engine = AudioEngine(
+        viewModelScope,
+        AudioConfig(frameSize = 2048, hopSize = 512, sampleRate = 44100)
+    )
+
+    // History of detected notes (like tuner history, not currently visualised)
     private val hist = ArrayDeque<Float>()
+
+    // Track which melody notes have already been counted as "hit"
+    private val hitNoteIndices = mutableSetOf<Int>()
 
     companion object {
         const val BPM = 120
@@ -43,6 +54,7 @@ class MelodyGameViewModel(private val settingsRepository: SettingsRepository) : 
 
     fun startGame() {
         viewModelScope.launch {
+            hitNoteIndices.clear()
             _uiState.value = MelodyGameState(notes = emptyList())
         }
     }
@@ -85,7 +97,10 @@ class MelodyGameViewModel(private val settingsRepository: SettingsRepository) : 
             
             engine.playMelodyWithTiming(_uiState.value.notes, BPM)
             playbackJob.cancel()
-            _uiState.value = _uiState.value.copy(isPlaying = false, currentPlaybackTime = 0f)
+            _uiState.value = _uiState.value.copy(
+                isPlaying = false,
+                currentPlaybackTime = 0f
+            )
         }
     }
 
@@ -122,6 +137,25 @@ class MelodyGameViewModel(private val settingsRepository: SettingsRepository) : 
         }
     }
 
+    /**
+     * Public API for the "Listen / Check tone" button.
+     * When active, we continuously listen like the tuner and
+     * show the detected pitch as a line on the canvas and
+     * update the score when the user hits a note.
+     */
+    fun toggleListening() {
+        if (_uiState.value.isListening) {
+            stopListening()
+            hist.clear()
+            _uiState.value = _uiState.value.copy(
+                userMelody = emptyList(),
+                currentPitch = null
+            )
+        } else {
+            startListening()
+        }
+    }
+
     private fun startListening() {
         if (_uiState.value.isListening) return
         viewModelScope.launch {
@@ -131,22 +165,77 @@ class MelodyGameViewModel(private val settingsRepository: SettingsRepository) : 
                     val mapper = NoteMapper(settings.key, settings.a4Hz)
                     if (!p.voiced) {
                         hist.add(Float.NaN)
+                        _uiState.value = _uiState.value.copy(
+                            userMelody = hist.toList(),
+                            currentPitch = null
+                        )
                     } else {
                         val info = mapper.map(p.hz)
                         if (info != null) {
-                            hist.add(info.midi + info.centsToNearest/100f)
+                            val numeric = info.midi + info.centsToNearest / 100f
+                            hist.add(numeric)
+
+                            evaluateHit(numeric)
+
+                            _uiState.value = _uiState.value.copy(
+                                userMelody = hist.toList(),
+                                currentPitch = numeric
+                            )
                         } else {
                             hist.add(Float.NaN)
+                            _uiState.value = _uiState.value.copy(
+                                userMelody = hist.toList(),
+                                currentPitch = null
+                            )
                         }
                     }
-                    _uiState.value = _uiState.value.copy(userMelody = hist.toList())
                 }
         }
     }
 
     private fun stopListening() {
         engine.stop()
-        _uiState.value = _uiState.value.copy(isListening = false)
+        _uiState.value = _uiState.value.copy(
+            isListening = false,
+            currentPitch = null
+        )
+    }
+
+    /**
+     * Very simple hit detection:
+     * - Find the closest melody note in pitch.
+     * - If within a semitone, count as hit.
+     * - Each melody note can only be counted once.
+     */
+    private fun evaluateHit(currentPitch: Float) {
+        val notes = _uiState.value.notes
+        if (notes.isEmpty()) return
+
+        // Find closest note by pitch
+        var bestIndex = -1
+        var bestDelta = Float.MAX_VALUE
+        notes.forEachIndexed { index, note ->
+            val d = abs(note.pitch - currentPitch)
+            if (d < bestDelta) {
+                bestDelta = d
+                bestIndex = index
+            }
+        }
+
+        // Within one semitone?
+        val hit = bestIndex >= 0 && bestDelta <= 0.5f
+
+        if (hit && !hitNoteIndices.contains(bestIndex)) {
+            hitNoteIndices.add(bestIndex)
+            _uiState.value = _uiState.value.copy(
+                score = _uiState.value.score + 1,
+                lastHitGood = true
+            )
+        } else {
+            _uiState.value = _uiState.value.copy(
+                lastHitGood = false
+            )
+        }
     }
 
     override fun onCleared() {

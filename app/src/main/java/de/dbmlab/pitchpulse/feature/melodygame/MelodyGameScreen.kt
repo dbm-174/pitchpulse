@@ -139,6 +139,7 @@ fun MelodyGameScreen() {
         NoteCanvas(
             notes = uiState.notes,
             currentPlaybackTime = if (uiState.isPlaying) uiState.currentPlaybackTime else null,
+            currentPitch = uiState.currentPitch,
             onTap = { pitch, timePosition ->
                 viewModel.handleCanvasTap(pitch, timePosition)
             },
@@ -146,14 +147,39 @@ fun MelodyGameScreen() {
                 .weight(1f)
                 .fillMaxWidth()
         )
-        
-        // Play button
-        Button(
-            onClick = { viewModel.playMelody() },
-            enabled = !uiState.isPlaying && uiState.notes.isNotEmpty(),
-            modifier = Modifier.fillMaxWidth()
+
+        // Game controls
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            Text(if (uiState.isPlaying) "Playing..." else "Play")
+            // Play button
+            Button(
+                onClick = { viewModel.playMelody() },
+                enabled = !uiState.isPlaying && uiState.notes.isNotEmpty(),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (uiState.isPlaying) "Playing..." else "Play melody")
+            }
+
+            // Listen / Check tone button (tuner-style listening)
+            Button(
+                onClick = { viewModel.toggleListening() },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(if (uiState.isListening) "Stop listening" else "Listen & check tone")
+            }
+
+            // Simple feedback line
+            val feedback = when (uiState.lastHitGood) {
+                null -> "Play or sing a note to start"
+                true -> "Hit!"
+                false -> "Miss"
+            }
+            Text(
+                text = "Score: ${uiState.score}   •   $feedback",
+                style = MaterialTheme.typography.bodyMedium
+            )
         }
     }
 }
@@ -162,6 +188,7 @@ fun MelodyGameScreen() {
 fun NoteCanvas(
     notes: List<Note>,
     currentPlaybackTime: Float? = null,
+    currentPitch: Float? = null,
     onTap: (Float, Float) -> Unit,
     modifier: Modifier = Modifier,
     windowSize: Float = 20f,
@@ -175,6 +202,8 @@ fun NoteCanvas(
     val noteCornerRadius = 4f // Corner radius for rounded rectangles
     val cursorColor = Color.Red
     val cursorWidth = 3f
+    val currentPitchColor = Color.Cyan
+    val currentPitchWidth = 3f
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
     val nonKeyTickColor = MaterialTheme.colorScheme.onSurface
     val keyTickColor = MaterialTheme.colorScheme.onSurface
@@ -304,6 +333,17 @@ fun NoteCanvas(
                         strokeWidth = cursorWidth
                     )
                 }
+            }
+
+            // Draw current detected pitch as a horizontal line (tuner style)
+            currentPitch?.let { pitch ->
+                val y = yFor(pitch.coerceIn(minVal, maxVal))
+                drawLine(
+                    color = currentPitchColor,
+                    start = Offset(0f, y),
+                    end = Offset(w, y),
+                    strokeWidth = currentPitchWidth
+                )
             }
         }
     }
