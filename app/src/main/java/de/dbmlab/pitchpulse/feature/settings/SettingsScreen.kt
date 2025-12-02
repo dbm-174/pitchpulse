@@ -17,7 +17,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -40,7 +40,7 @@ fun SettingsScreen(
 ) {
     val settings by vm.settings.collectAsState()
 
-    var a4Hz by remember(settings) { mutableStateOf(settings?.a4Hz?.toString() ?: "440.0") }
+    var a4Hz by remember(settings) { mutableStateOf(settings?.a4Hz ?: 440f) }
     var key by remember(settings) { mutableStateOf(settings?.key ?: NoteMapper.AllKeys.C) }
     var keyDropdownExpanded by remember { mutableStateOf(false) }
 
@@ -53,10 +53,17 @@ fun SettingsScreen(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center
             ) {
-                OutlinedTextField(
+                Text("Reference tone (A4)", modifier = Modifier.fillMaxWidth())
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("${a4Hz.toInt()} Hz (430–450)", modifier = Modifier.fillMaxWidth())
+                Slider(
                     value = a4Hz,
-                    onValueChange = { a4Hz = it },
-                    label = { Text("Reference Tone (A4) Hz") },
+                    onValueChange = { newValue ->
+                        // Clamp and keep it in 1 Hz steps visually
+                        a4Hz = newValue.coerceIn(430f, 450f)
+                    },
+                    valueRange = 430f..450f,
+                    steps = 20,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -89,12 +96,15 @@ fun SettingsScreen(
 
                 Spacer(modifier = Modifier.height(32.dp))
 
-                // Corrected version in SettingsScreen.kt
-                Button(onClick = {
-                    a4Hz.toFloatOrNull()?.let { vm.setA4Hz(it) }
-                    vm.setKey(key)
-                    onNavigateBack()
-                }) {
+                // Save button
+                Button(
+                    onClick = {
+                        val snappedHz = a4Hz.toInt().coerceIn(430, 450).toFloat()
+                        vm.setA4Hz(snappedHz)
+                        vm.setKey(key)
+                        onNavigateBack()
+                    }
+                ) {
                     Text("Save")
                 }
 
