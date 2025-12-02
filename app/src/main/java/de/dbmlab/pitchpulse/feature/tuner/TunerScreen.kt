@@ -17,11 +17,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -47,7 +43,6 @@ import de.dbmlab.pitchpulse.core.permissions.hasRecordAudioPermission
 import de.dbmlab.pitchpulse.core.permissions.rememberPermissionLauncher
 import de.dbmlab.pitchpulse.core.settings.SettingsRepository
 import de.dbmlab.pitchpulse.feature.chart.HistoryChart
-import de.dbmlab.pitchpulse.feature.settings.SettingsScreen
 import de.dbmlab.pitchpulse.ui.theme.PitchPulseTheme
 import kotlin.math.roundToInt
 
@@ -59,7 +54,7 @@ fun TunerScreenPreview() {
     val vm = TunerViewModel(SettingsRepository(context))
     PitchPulseTheme(darkTheme = true) {
         Surface(Modifier.fillMaxSize()) {
-            TunerScreen(vm, onNavigateToSettings = {})
+            TunerScreen(vm)
         }
     }
 }
@@ -72,21 +67,15 @@ fun TunerHost() {
     var hasPermission by remember { mutableStateOf(hasRecordAudioPermission(context)) }
     val permissionLauncher = rememberPermissionLauncher { hasPermission = it }
     val activity = (LocalContext.current as? Activity)
-    var showSettings by remember { mutableStateOf(false) }
-
 
     if (hasPermission) {
-        if (showSettings) {
-            SettingsScreen(onNavigateBack = { showSettings = false })
-        } else {
-            LifecycleEffect(
-                onStarted = { vm.start() },
-                onStopped = { vm.stop() }
-            )
-            PitchPulseTheme(darkTheme = true) {
-                Surface(Modifier.fillMaxSize()) {
-                    TunerScreen(vm, onNavigateToSettings = { showSettings = true })
-                }
+        LifecycleEffect(
+            onStarted = { vm.start() },
+            onStopped = { vm.stop() }
+        )
+        PitchPulseTheme(darkTheme = true) {
+            Surface(Modifier.fillMaxSize()) {
+                TunerScreen(vm)
             }
         }
     } else {
@@ -140,19 +129,16 @@ fun PermissionScreen(
 
 
 @Composable
-fun TunerScreen(vm: TunerViewModel, onNavigateToSettings: () -> Unit) {
+fun TunerScreen(vm: TunerViewModel) {
     val s by vm.state.collectAsState()
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(modifier = Modifier.fillMaxWidth()) {
-            NoteText(s.note)
-            IconButton(onClick = onNavigateToSettings, modifier = Modifier.align(Alignment.CenterEnd)) {
-                Icon(Icons.Default.Settings, contentDescription = "Settings")
-            }
-        }
+        NoteText(s.note)
 
         Spacer(Modifier.height(16.dp))
         NeedleBar(cents = s.cents)

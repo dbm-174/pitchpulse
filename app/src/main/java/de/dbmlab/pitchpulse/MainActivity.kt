@@ -5,6 +5,8 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
@@ -51,7 +53,19 @@ class MainActivity : ComponentActivity() {
                             val currentDestination = navBackStackEntry?.destination
                             screens.forEach { screen ->
                                 NavigationBarItem(
-                                    icon = { Icon(painterResource(id = screen.iconResId), contentDescription = null) },
+                                    icon = {
+                                        if (screen === SettingsScreen) {
+                                            Icon(
+                                                imageVector = Icons.Filled.Settings,
+                                                contentDescription = null
+                                            )
+                                        } else {
+                                            Icon(
+                                                painter = painterResource(id = screen.iconResId),
+                                                contentDescription = null
+                                            )
+                                        }
+                                    },
                                     label = { Text(stringResource(screen.titleResId)) },
                                     selected = currentDestination?.hierarchy?.any { it.route == screen.route } == true,
                                     onClick = {
