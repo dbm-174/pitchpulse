@@ -59,6 +59,16 @@ class MelodyGameViewModel(private val settingsRepository: SettingsRepository) : 
         }
     }
 
+    fun clearNotes() {
+        hitNoteIndices.clear()
+        _uiState.value = _uiState.value.copy(
+            notes = emptyList(),
+            score = 0,
+            lastHitGood = null,
+            currentPlaybackTime = 0f
+        )
+    }
+
     fun playMelody() {
         viewModelScope.launch {
             if (_uiState.value.isPlaying) return@launch

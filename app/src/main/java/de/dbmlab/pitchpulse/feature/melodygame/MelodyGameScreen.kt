@@ -7,6 +7,7 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,6 +34,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
@@ -40,6 +42,7 @@ import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.viewmodel.compose.viewModel
@@ -170,6 +173,15 @@ fun MelodyGameScreen() {
                 Text(if (uiState.isListening) "Stop listening" else "Listen & check tone")
             }
 
+            // Clear notes button
+            Button(
+                onClick = { viewModel.clearNotes() },
+                modifier = Modifier.fillMaxWidth(),
+                enabled = uiState.notes.isNotEmpty()
+            ) {
+                Text("Clear notes")
+            }
+
             // Simple feedback line
             val feedback = when (uiState.lastHitGood) {
                 null -> "Play or sing a note to start"
@@ -213,67 +225,97 @@ fun NoteCanvas(
     val minVal = 0f
     
     val mapper = NoteMapper()
-    
+
     // Initial viewpoint center
     val initialCenter = 60f.coerceIn(windowSize/2, maxVal - windowSize/2)
-    
+
+    val canvasSize = remember { mutableStateOf(IntSize.Zero) }
+    var pitchCenter by remember { mutableStateOf(initialCenter) }
+    var timeWindowStart by remember { mutableStateOf(0f) }
+
+    val totalTimeSpan = remember(notes) {
+        val lastNoteEnd = notes.maxOfOrNull { it.timePosition + quarterNoteBeats } ?: 0f
+        maxTimeBeats.coerceAtLeast(lastNoteEnd + quarterNoteBeats)
+    }
+    val timeWindow = maxTimeBeats
+    val maxTimeStart = (totalTimeSpan - timeWindow).coerceAtLeast(0f)
+
     Box(
         modifier
             .fillMaxWidth()
             .background(backgroundColor, RoundedCornerShape(12.dp))
             .padding(4.dp)
+            .onSizeChanged { canvasSize.value = it }
+            .pointerInput(Unit) {
+                detectDragGestures { change, dragAmount ->
+                    change.consume()
+                    val h = canvasSize.value.height.coerceAtLeast(1)
+                    val w = canvasSize.value.width.coerceAtLeast(1)
+
+                    val pitchDelta = (dragAmount.y / h) * windowSize
+                    val minCenter = windowSize / 2f
+                    val maxCenter = maxVal - windowSize / 2f
+                    pitchCenter = (pitchCenter + pitchDelta).coerceIn(minCenter, maxCenter)
+
+                    val timeDelta = -(dragAmount.x / w) * timeWindow
+                    timeWindowStart = (timeWindowStart + timeDelta).coerceIn(0f, maxTimeStart)
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures { tapOffset ->
+                    val w = size.width
+                    val h = size.height
+
+                    // Calculate viewport
+                    val pitchVpMin = (pitchCenter - windowSize/2).coerceIn(minVal, maxVal - windowSize)
+                    val pitchVpMax = (pitchVpMin + windowSize).coerceAtMost(maxVal)
+
+                    // Convert y coordinate to pitch (MIDI note)
+                    val yNormalized = 1f - (tapOffset.y / h).coerceIn(0f, 1f)
+                    val pitch = pitchVpMin + yNormalized * (pitchVpMax - pitchVpMin)
+
+                    // Convert x coordinate to time position (in beats)
+                    val timePosition = (tapOffset.x / w) * timeWindow + timeWindowStart
+
+                    onTap(pitch, timePosition)
+                }
+            }
     ) {
         val measurer = rememberTextMeasurer()
         Canvas(
-            modifier = Modifier
-                .fillMaxSize()
-                .pointerInput(Unit) {
-                    detectTapGestures { tapOffset ->
-                        val w = size.width
-                        val h = size.height
-                        
-                        // Calculate viewport
-                        val vpMin = (initialCenter - windowSize/2).coerceIn(minVal, maxVal - windowSize)
-                        val vpMax = (vpMin + windowSize).coerceAtMost(maxVal)
-                        
-                        // Convert y coordinate to pitch (MIDI note)
-                        val yNormalized = 1f - (tapOffset.y / h).coerceIn(0f, 1f)
-                        val pitch = vpMin + yNormalized * (vpMax - vpMin)
-                        
-                        // Convert x coordinate to time position (in beats)
-                        val timePosition = (tapOffset.x / w) * maxTimeBeats
-                        
-                        onTap(pitch, timePosition)
-                    }
-                }
+            modifier = Modifier.fillMaxSize()
         ) {
             val w = size.width
             val h = size.height
-            
+
             // Current viewport
-            val vpMin = (initialCenter - windowSize/2).coerceIn(minVal, maxVal - windowSize)
-            val vpMax = (vpMin + windowSize).coerceAtMost(maxVal)
-            
+            val pitchVpMin = (pitchCenter - windowSize/2).coerceIn(minVal, maxVal - windowSize)
+            val pitchVpMax = (pitchVpMin + windowSize).coerceAtMost(maxVal)
+
+            val timeVpStart = timeWindowStart.coerceIn(0f, maxTimeStart)
+            val timeVpEnd = timeVpStart + timeWindow
+
             // Mapping of data to y-value (y increases with downwards movement)
             fun yFor(v: Float): Float {
-                val t = ((v - vpMin) / (vpMax - vpMin)).coerceIn(0f, 1f)  // 0..1
+                val t = ((v - pitchVpMin) / (pitchVpMax - pitchVpMin)).coerceIn(0f, 1f)  // 0..1
                 return (1f - t) * h
             }
-            
+
             // Mapping of time position to x-value
             fun xFor(timePos: Float): Float {
-                return (timePos / maxTimeBeats).coerceIn(0f, 1f) * w
+                val normalized = ((timePos - timeVpStart) / timeWindow).coerceIn(0f, 1f)
+                return normalized * w
             }
-            
+
             // Small ticks for every note
-            for (tick in ceil(vpMin).toInt()..floor(vpMax).toInt()) {
+            for (tick in ceil(pitchVpMin).toInt()..floor(pitchVpMax).toInt()) {
                 val y = yFor(tick.toFloat())
                 drawLine(nonKeyTickColor, Offset(0f, y), Offset(w, y), strokeWidth = 1f)
             }
-            
+
             // Strong ticks and labels for notes within this key
             val paddingPx = 4.dp.toPx()
-            for (tick in ceil(vpMin).toInt()..floor(vpMax).toInt()) {
+            for (tick in ceil(pitchVpMin).toInt()..floor(pitchVpMax).toInt()) {
                 if (mapper.isInKey(tick)) {
                     val y = yFor(tick.toFloat())
                     drawLine(
@@ -291,9 +333,11 @@ fun NoteCanvas(
                     drawText(layout, topLeft = topLeft)
                 }
             }
-            
+
             // Draw time grid lines
-            for (beat in 0..maxTimeBeats.toInt()) {
+            val startBeat = floor(timeVpStart).toInt()
+            val endBeat = ceil(timeVpEnd).toInt()
+            for (beat in startBeat..endBeat) {
                 val x = xFor(beat.toFloat())
                 drawLine(
                     nonKeyTickColor.copy(alpha = 0.5f),
@@ -302,15 +346,15 @@ fun NoteCanvas(
                     strokeWidth = 1f
                 )
             }
-            
+
             // Draw notes as rounded rectangles
             notes.forEach { note ->
                 val y = yFor(note.pitch)
                 val x = xFor(note.timePosition)
-                
+
                 // Calculate note width based on duration (quarter note = 1 beat)
                 val noteWidth = xFor(note.timePosition + quarterNoteBeats) - x
-                
+
                 // Draw rounded rectangle centered on the pitch line
                 val rectTop = y - noteHeight / 2
                 val rectLeft = x
@@ -321,10 +365,10 @@ fun NoteCanvas(
                     cornerRadius = CornerRadius(noteCornerRadius, noteCornerRadius)
                 )
             }
-            
+
             // Draw playback cursor
             currentPlaybackTime?.let { playbackTime ->
-                if (playbackTime >= 0f && playbackTime <= maxTimeBeats) {
+                if (playbackTime in timeVpStart..timeVpEnd) {
                     val cursorX = xFor(playbackTime)
                     drawLine(
                         color = cursorColor,
@@ -337,13 +381,15 @@ fun NoteCanvas(
 
             // Draw current detected pitch as a horizontal line (tuner style)
             currentPitch?.let { pitch ->
-                val y = yFor(pitch.coerceIn(minVal, maxVal))
-                drawLine(
-                    color = currentPitchColor,
-                    start = Offset(0f, y),
-                    end = Offset(w, y),
-                    strokeWidth = currentPitchWidth
-                )
+                if (pitch in pitchVpMin..pitchVpMax) {
+                    val y = yFor(pitch.coerceIn(minVal, maxVal))
+                    drawLine(
+                        color = currentPitchColor,
+                        start = Offset(0f, y),
+                        end = Offset(w, y),
+                        strokeWidth = currentPitchWidth
+                    )
+                }
             }
         }
     }
