@@ -31,6 +31,10 @@ import de.dbmlab.pitchpulse.core.settings.SettingsRepository
 import de.dbmlab.pitchpulse.ui.theme.PitchPulseTheme
 import kotlin.math.ceil
 import kotlin.math.floor
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import de.dbmlab.pitchpulse.core.settings.AppSettings
 
 
 @Preview
@@ -66,8 +70,13 @@ fun HistoryChart(
     val maxVal = 127f
     val minVal = 0f
 
-    // Later
-    val mapper = NoteMapper()
+    val context = LocalContext.current
+    val settingsRepository = remember { SettingsRepository(context) }
+    val appSettings by settingsRepository.appSettings.collectAsState(
+        initial = AppSettings(440f, NoteMapper.AllKeys.C)
+    )
+
+    val mapper = remember(appSettings.key) { NoteMapper(appSettings.key) }
 
     // --------------------
     // we do not show the full window but follow smoothely, this is done from here
@@ -170,6 +179,3 @@ fun HistoryChart(
         }
     }
 }
-
-
-
