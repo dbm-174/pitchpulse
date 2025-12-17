@@ -49,6 +49,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import de.dbmlab.pitchpulse.core.music.NoteMapper
 import de.dbmlab.pitchpulse.core.permissions.hasRecordAudioPermission
 import de.dbmlab.pitchpulse.core.permissions.rememberPermissionLauncher
+import de.dbmlab.pitchpulse.core.settings.AppSettings
 import de.dbmlab.pitchpulse.core.settings.SettingsRepository
 import de.dbmlab.pitchpulse.ui.theme.PitchPulseTheme
 import kotlin.math.ceil
@@ -132,6 +133,11 @@ fun MelodyGameScreen() {
 
     val uiState by viewModel.uiState.collectAsState()
 
+    val appSettings by settingsRepository.appSettings.collectAsState(
+        initial = AppSettings(440f, NoteMapper.AllKeys.C)
+    )
+    val mapper = remember(appSettings.key) { NoteMapper(appSettings.key) }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -146,6 +152,7 @@ fun MelodyGameScreen() {
             onTap = { pitch, timePosition ->
                 viewModel.handleCanvasTap(pitch, timePosition)
             },
+            mapper = mapper,
             modifier = Modifier
                 .weight(1f)
                 .fillMaxWidth()
@@ -202,6 +209,7 @@ fun NoteCanvas(
     currentPlaybackTime: Float? = null,
     currentPitch: Float? = null,
     onTap: (Float, Float) -> Unit,
+    mapper: NoteMapper,
     modifier: Modifier = Modifier,
     windowSize: Float = 20f,
     maxTimeBeats: Float = 8f, // Maximum time range in beats
@@ -219,12 +227,10 @@ fun NoteCanvas(
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
     val nonKeyTickColor = MaterialTheme.colorScheme.onSurface
     val keyTickColor = MaterialTheme.colorScheme.onSurface
-    
+
     // Maximum size is given by the 128 possible midi notes
     val maxVal = 127f
     val minVal = 0f
-    
-    val mapper = NoteMapper()
 
     // Initial viewpoint center
     val initialCenter = 60f.coerceIn(windowSize/2, maxVal - windowSize/2)
