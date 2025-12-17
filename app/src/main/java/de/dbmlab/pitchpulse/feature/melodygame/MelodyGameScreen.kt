@@ -32,7 +32,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalContext
@@ -52,6 +51,9 @@ import de.dbmlab.pitchpulse.core.permissions.rememberPermissionLauncher
 import de.dbmlab.pitchpulse.core.settings.AppSettings
 import de.dbmlab.pitchpulse.core.settings.SettingsRepository
 import de.dbmlab.pitchpulse.ui.theme.PitchPulseTheme
+import de.dbmlab.pitchpulse.ui.theme.cursor
+import de.dbmlab.pitchpulse.ui.theme.currentPitch
+import de.dbmlab.pitchpulse.ui.theme.note
 import kotlin.math.ceil
 import kotlin.math.floor
 
@@ -217,21 +219,21 @@ fun NoteCanvas(
 ) {
     // Drawing parameters
     val backgroundColor = MaterialTheme.colorScheme.surfaceContainer
-    val noteColor = Color.Green
+    val noteColor = MaterialTheme.colorScheme.note
     val noteHeight = 16f // Height of the note rectangle
     val noteCornerRadius = 4f // Corner radius for rounded rectangles
-    val cursorColor = Color.Red
+    val cursorColor = MaterialTheme.colorScheme.cursor
     val cursorWidth = 3f
-    val currentPitchColor = Color.Cyan
+    val currentPitchColor = MaterialTheme.colorScheme.currentPitch
     val currentPitchWidth = 3f
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
     val nonKeyTickColor = MaterialTheme.colorScheme.onSurface
     val keyTickColor = MaterialTheme.colorScheme.onSurface
-
+    
     // Maximum size is given by the 128 possible midi notes
     val maxVal = 127f
     val minVal = 0f
-
+    
     // Initial viewpoint center
     val initialCenter = 60f.coerceIn(windowSize/2, maxVal - windowSize/2)
 

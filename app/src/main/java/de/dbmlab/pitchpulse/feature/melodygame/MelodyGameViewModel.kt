@@ -10,7 +10,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -80,7 +81,7 @@ class MelodyGameViewModel(private val settingsRepository: SettingsRepository) : 
             }
 
             _uiState.value = _uiState.value.copy(isPlaying = true, currentPlaybackTime = 0f)
-            
+
             // Start playback progress tracking
             val playbackJob = launch {
                 val msPerBeat = 60000f / BPM
@@ -89,22 +90,22 @@ class MelodyGameViewModel(private val settingsRepository: SettingsRepository) : 
                     _uiState.value = _uiState.value.copy(isPlaying = false, currentPlaybackTime = 0f)
                     return@launch
                 }
-                
+
                 val totalDurationBeats = sortedNotes.last().timePosition + 1f // Last note + quarter note duration
                 val startTime = System.currentTimeMillis()
-                
+
                 while (isActive) {
                     val elapsedMs = System.currentTimeMillis() - startTime
                     val currentTimeBeats = (elapsedMs / msPerBeat).coerceAtMost(totalDurationBeats)
                     _uiState.value = _uiState.value.copy(currentPlaybackTime = currentTimeBeats)
-                    
+
                     if (currentTimeBeats >= totalDurationBeats) {
                         break
                     }
                     kotlinx.coroutines.delay(16) // ~60fps update rate
                 }
             }
-            
+
             engine.playMelodyWithTiming(_uiState.value.notes, BPM)
             playbackJob.cancel()
             _uiState.value = _uiState.value.copy(
@@ -170,9 +171,12 @@ class MelodyGameViewModel(private val settingsRepository: SettingsRepository) : 
         if (_uiState.value.isListening) return
         viewModelScope.launch {
             _uiState.value = _uiState.value.copy(isListening = engine.start())
-            engine.pitch.combine(settingsRepository.appSettings) { p, settings -> Pair(p, settings) }
-                .collectLatest { (p, settings) ->
+            settingsRepository.appSettings
+                .flatMapLatest { settings ->
                     val mapper = NoteMapper(settings.key, settings.a4Hz)
+                    engine.pitch.map { p -> Pair(p, mapper) }
+                }
+                .collectLatest { (p, mapper) ->
                     if (!p.voiced) {
                         hist.add(Float.NaN)
                         _uiState.value = _uiState.value.copy(

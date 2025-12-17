@@ -3,18 +3,18 @@ package de.dbmlab.pitchpulse.ui.theme
 import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 
-
-
 enum class AppThemeMode { LIGHT, DARK, SYSTEM }
-
 
 private val DarkColorScheme = darkColorScheme(
     primary = Purple80,
@@ -37,6 +37,26 @@ private val LightColorScheme = lightColorScheme(
     onSurface = Color(0xFF1C1B1F),
     */
 )
+
+val ColorScheme.chartLine: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = ChartLineColor
+
+val ColorScheme.note: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = NoteColor
+
+val ColorScheme.cursor: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = CursorColor
+
+val ColorScheme.currentPitch: Color
+    @Composable
+    @ReadOnlyComposable
+    get() = CurrentPitchColor
 
 @Composable
 fun PitchPulseTheme(

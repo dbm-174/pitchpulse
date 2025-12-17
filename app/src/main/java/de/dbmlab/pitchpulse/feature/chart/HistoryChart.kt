@@ -1,4 +1,3 @@
-
 package de.dbmlab.pitchpulse.feature.chart
 
 import androidx.compose.animation.core.Animatable
@@ -18,7 +17,6 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.drawText
@@ -35,6 +33,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.platform.LocalContext
 import de.dbmlab.pitchpulse.core.settings.AppSettings
+import de.dbmlab.pitchpulse.ui.theme.chartLine
 
 
 @Preview
@@ -61,7 +60,7 @@ fun HistoryChart(
 ) {
     // Drawing parameters
     val backgroundColor = MaterialTheme.colorScheme.surfaceContainer
-    val lineColor = Color.Green
+    val lineColor = MaterialTheme.colorScheme.chartLine
     val lineWidth = 9f
     val textColor = MaterialTheme.colorScheme.onSurfaceVariant
     val nonKeyTickColor = MaterialTheme.colorScheme.onSurface
